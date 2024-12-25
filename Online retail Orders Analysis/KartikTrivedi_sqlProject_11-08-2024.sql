@@ -1,0 +1,370 @@
+/*
+
+-----------------------------------------------------------------------------------------------------------------------------------
+                                               Guidelines
+-----------------------------------------------------------------------------------------------------------------------------------
+
+The provided document is a guide for the project. Follow the instructions and take the necessary steps to finish
+the project in the SQL file			
+
+-----------------------------------------------------------------------------------------------------------------------------------
+
+                                                         Queries
+                                               
+-----------------------------------------------------------------------------------------------------------------------------------*/
+
+use orders;
+
+-- 1. WRITE A QUERY TO DISPLAY CUSTOMER FULL NAME WITH THEIR TITLE (MR/MS), BOTH FIRST NAME AND LAST NAME ARE IN UPPER CASE WITH 
+-- CUSTOMER EMAIL ID, CUSTOMER CREATIONDATE AND DISPLAY CUSTOMER’S CATEGORY AFTER APPLYING BELOW CATEGORIZATION RULES:
+	-- i.IF CUSTOMER CREATION DATE YEAR <2005 THEN CATEGORY A
+    -- ii.IF CUSTOMER CREATION DATE YEAR >=2005 AND <2011 THEN CATEGORY B
+    -- iii.IF CUSTOMER CREATION DATE YEAR>= 2011 THEN CATEGORY C
+    
+    -- HINT: USE CASE STATEMENT, NO PERMANENT CHANGE IN TABLE REQUIRED. [NOTE: TABLES TO BE USED -ONLINE_CUSTOMER TABLE]
+-- categorizing customers based on date of creation
+select concat(case 
+				when CUSTOMER_GENDER = 'F' then 'MS.' 
+				else 'MR.' end, 
+			' ', 
+			upper(CUSTOMER_FNAME), 
+            ' ',
+			upper(CUSTOMER_LNAME)) as CUSTOMER_NAME,
+	CUSTOMER_EMAIL,
+    CUSTOMER_CREATION_DATE,
+    case
+		when CUSTOMER_CREATION_DATE < '2005-01-01' then 'A'
+        when CUSTOMER_CREATION_DATE between '2005-01-01' and '2010-12-31' then 'B'
+        when CUSTOMER_CREATION_DATE > '2010-12-31' then 'C'
+	end as CUSTOMER_CATEGORY
+from online_customer;  
+
+-- Counting number of customers based on the above categories
+SELECT 
+    case
+        when CUSTOMER_CREATION_DATE < '2005-01-01' then 'A'
+        when CUSTOMER_CREATION_DATE between '2005-01-01' and '2010-12-31' then 'B'
+        when CUSTOMER_CREATION_DATE > '2010-12-31' then 'C'
+    end as CUSTOMER_CATEGORY,
+    COUNT(*) as CATEGORY_COUNT
+FROM 
+    online_customer
+GROUP BY 
+    CUSTOMER_CATEGORY;
+
+    
+-- 2. WRITE A QUERY TO DISPLAY THE FOLLOWING INFORMATION FOR THE PRODUCTS, WHICH HAVE NOT BEEN SOLD:  PRODUCT_ID, PRODUCT_DESC, 
+-- PRODUCT_QUANTITY_AVAIL, PRODUCT_PRICE,INVENTORY VALUES(PRODUCT_QUANTITY_AVAIL*PRODUCT_PRICE), NEW_PRICE AFTER APPLYING DISCOUNT 
+-- AS PER BELOW CRITERIA. SORT THE OUTPUT WITH RESPECT TO DECREASING VALUE OF INVENTORY_VALUE.
+	-- i.IF PRODUCT PRICE > 20,000 THEN APPLY 20% DISCOUNT
+    -- ii.IF PRODUCT PRICE > 10,000 THEN APPLY 15% DISCOUNT
+    -- iii.IF PRODUCT PRICE =< 10,000 THEN APPLY 10% DISCOUNT
+    
+    -- HINT: USE CASE STATEMENT, NO PERMANENT CHANGE IN TABLE REQUIRED. [NOTE: TABLES TO BE USED -PRODUCT, ORDER_ITEMS TABLE] 
+    
+-- applying discount to unsold products based on their original price
+select p.PRODUCT_ID, 
+	upper(p.PRODUCT_DESC) as PRODUCT_DESC,
+    p.PRODUCT_QUANTITY_AVAIL, 
+    p.PRODUCT_PRICE,
+    (p.PRODUCT_QUANTITY_AVAIL*p.PRODUCT_PRICE) as INVENTORY_VALUE,
+    case
+		when p.PRODUCT_PRICE > 20000 then p.PRODUCT_PRICE*0.8
+        when p.PRODUCT_PRICE > 10000 then p.PRODUCT_PRICE*0.85
+        when p.PRODUCT_PRICE <= 10000 then p.PRODUCT_PRICE*0.9
+        end as NEW_PRICE
+from product as p
+	left join order_items as oi 
+    on p.PRODUCT_ID = oi.PRODUCT_ID
+where oi.PRODUCT_ID is null;
+
+-- calculating number of unsold products based on their price
+select case
+		when p.PRODUCT_PRICE > 20000 then 'Price above 20000'
+        when p.PRODUCT_PRICE > 10000 then 'Price between 10000 and 20000'
+        when p.PRODUCT_PRICE <= 10000 then 'Price below 10000'
+        end as PRICE_RANGE,
+	count(*) as UNSOLD_PRODUCT_COUNT
+from product as p
+	left join order_items as oi 
+    on p.PRODUCT_ID = oi.PRODUCT_ID
+where oi.PRODUCT_ID is null
+group by PRICE_RANGE;
+
+-- calculating number of total products categorized by their price
+select case
+		when PRODUCT_PRICE > 20000 then 'Price above 20000'
+        when PRODUCT_PRICE > 10000 then 'Price between 10000 and 20000'
+        when PRODUCT_PRICE <= 10000 then 'Price below 10000'
+        end as PRICE_RANGE,
+	count(*) as PRODUCT_COUNT
+from product
+group by PRICE_RANGE;
+
+-- 3. WRITE A QUERY TO DISPLAY PRODUCT_CLASS_CODE, PRODUCT_CLASS_DESCRIPTION, COUNT OF PRODUCT TYPE IN EACH PRODUCT CLASS, 
+-- INVENTORY VALUE (P.PRODUCT_QUANTITY_AVAIL*P.PRODUCT_PRICE). INFORMATION SHOULD BE DISPLAYED FOR ONLY THOSE PRODUCT_CLASS_CODE 
+-- WHICH HAVE MORE THAN 1,00,000 INVENTORY VALUE. SORT THE OUTPUT WITH RESPECT TO DECREASING VALUE OF INVENTORY_VALUE.
+	-- [NOTE: TABLES TO BE USED -PRODUCT, PRODUCT_CLASS]
+  
+select pc.PRODUCT_CLASS_CODE,
+	upper(pc.PRODUCT_CLASS_DESC) as PRODUCT_CLASS_DESC,
+    count(p.PRODUCT_ID) as PRODUCT_COUNT,
+    sum(p.PRODUCT_QUANTITY_AVAIL*p.PRODUCT_PRICE) as INVENTORY_VALUE
+from product_class as pc
+	left join product as p
+	on pc.PRODUCT_CLASS_CODE = p.PRODUCT_CLASS_CODE
+group by pc.PRODUCT_CLASS_CODE, pc.PRODUCT_CLASS_DESC
+having INVENTORY_VALUE > 100000
+order by INVENTORY_VALUE desc;
+
+-- 4. WRITE A QUERY TO DISPLAY CUSTOMER_ID, FULL NAME, CUSTOMER_EMAIL, CUSTOMER_PHONE AND COUNTRY OF CUSTOMERS WHO HAVE CANCELLED 
+-- ALL THE ORDERS PLACED BY THEM(USE SUB-QUERY)
+	-- [NOTE: TABLES TO BE USED - ONLINE_CUSTOMER, ADDRESSS, ORDER_HEADER]
+    
+SELECT 
+    oc.CUSTOMER_ID,
+    upper(CONCAT(oc.CUSTOMER_FNAME, ' ', oc.CUSTOMER_LNAME)) AS FULL_NAME,
+    oc.CUSTOMER_EMAIL,
+    oc.CUSTOMER_PHONE,
+    upper(a.COUNTRY) as COUNTRY
+FROM 
+    online_customer as oc
+INNER JOIN
+    address as a ON oc.ADDRESS_ID = a.ADDRESS_ID
+WHERE 
+    oc.CUSTOMER_ID IN (
+        SELECT CUSTOMER_ID
+        FROM order_header
+        GROUP BY CUSTOMER_ID
+        HAVING COUNT(CASE WHEN ORDER_STATUS = 'Cancelled' THEN 1 END) = COUNT(*)
+    );
+
+-- 5. WRITE A QUERY TO DISPLAY SHIPPER NAME, CITY TO WHICH IT IS CATERING, NUMBER OF CUSTOMER CATERED BY THE SHIPPER IN THE CITY AND 
+-- NUMBER OF CONSIGNMENTS DELIVERED TO THAT CITY FOR SHIPPER DHL(9 ROWS)
+	-- [NOTE: TABLES TO BE USED -SHIPPER, ONLINE_CUSTOMER, ADDRESSS, ORDER_HEADER]
+
+select s.SHIPPER_NAME,
+	upper(a.CITY) as CITY,
+    count(DISTINCT oc.CUSTOMER_ID) as CUSTOMER_CATERED,
+    count(oc.CUSTOMER_ID) as CONSIGNMENT_CATERED
+from 
+	(select SHIPPER_ID, SHIPPER_NAME
+    from shipper
+    where SHIPPER_NAME = 'DHL') as s
+inner join
+	(select CUSTOMER_ID,
+        SHIPPER_ID
+	from order_header
+    where ORDER_STATUS = 'Shipped') as oh
+on s.SHIPPER_ID = oh.SHIPPER_ID
+left join
+	(select 
+		CUSTOMER_ID,
+		ADDRESS_ID
+	from  
+		online_customer) as oc
+on oc.CUSTOMER_ID = oh.CUSTOMER_ID
+left join
+	(select ADDRESS_ID,
+		CITY
+        from address) as a
+on a.ADDRESS_ID = oc.ADDRESS_ID
+group by s.SHIPPER_NAME, a.CITY;
+
+-- 6. WRITE A QUERY TO DISPLAY CUSTOMER ID, CUSTOMER FULL NAME, TOTAL QUANTITY AND TOTAL VALUE (QUANTITY*PRICE) SHIPPED WHERE MODE 
+-- OF PAYMENT IS CASH AND CUSTOMER LAST NAME STARTS WITH 'G'
+	-- [NOTE: TABLES TO BE USED -ONLINE_CUSTOMER, ORDER_ITEMS, PRODUCT, ORDER_HEADER]
+
+select oc.CUSTOMER_ID,
+	oc.CUSTOMER_NAME,
+    sum(oi.PRODUCT_QUANTITY) as TOTAL_QUANTITY,
+    sum(oi.PRODUCT_QUANTITY*p.PRODUCT_PRICE) as TOTAL_VALUE
+from 
+	(select CUSTOMER_ID,
+		upper(concat(CUSTOMER_FNAME, ' ', CUSTOMER_LNAME)) as CUSTOMER_NAME
+	from online_customer
+    where CUSTOMER_LNAME like 'G%') as oc
+join
+	(select ORDER_ID,
+		CUSTOMER_ID
+	from order_header
+    where PAYMENT_MODE = 'Cash'
+		and ORDER_STATUS = 'Shipped') as oh
+	on oh.CUSTOMER_ID = oc.CUSTOMER_ID
+left join 
+	(select ORDER_ID,
+		PRODUCT_ID,
+        PRODUCT_QUANTITY
+	from order_items) as oi
+	on oi.ORDER_ID = oh.ORDER_ID
+left join
+	(select PRODUCT_ID,
+		PRODUCT_PRICE
+	from product) as p
+    on p.PRODUCT_ID = oi.PRODUCT_ID
+group by oc.CUSTOMER_ID, oc.CUSTOMER_NAME;
+
+-- 7. WRITE A QUERY TO DISPLAY ORDER_ID AND VOLUME OF BIGGEST ORDER (IN TERMS OF VOLUME) THAT CAN FIT IN CARTON ID 10  
+	-- [NOTE: TABLES TO BE USED -CARTON, ORDER_ITEMS, PRODUCT]
+    
+select ord.ORDER_ID,
+	max(ord.ORDER_VOLUME) as BIGGEST_ORDER_VOLUME
+from 
+	(select oi.ORDER_ID,
+		oi.PRODUCT_ID,
+        (oi.PRODUCT_QUANTITY*p.LEN*p.WIDTH*p.HEIGHT) as ORDER_VOLUME
+	from order_items as oi
+    join 
+		product as p
+        on oi.PRODUCT_ID = p.PRODUCT_ID) as ord
+where ord.ORDER_VOLUME < (select (LEN*WIDTH*HEIGHT) as CARTON_VOLUME
+							from carton
+                            where CARTON_ID = 10)
+group by ord.ORDER_ID
+order by BIGGEST_ORDER_VOLUME desc
+limit 1;
+
+select CARTON_ID, 
+	(LEN*WIDTH*HEIGHT) as CARTON_VOLUME
+from carton
+where CARTON_ID = 10;
+
+-- 8. WRITE A QUERY TO DISPLAY PRODUCT_ID, PRODUCT_DESC, PRODUCT_QUANTITY_AVAIL, QUANTITY SOLD, AND SHOW INVENTORY STATUS OF 
+-- PRODUCTS AS BELOW AS PER BELOW CONDITION:
+	-- A.FOR ELECTRONICS AND COMPUTER CATEGORIES, 
+		-- i.IF SALES TILL DATE IS ZERO THEN SHOW 'NO SALES IN PAST, GIVE DISCOUNT TO REDUCE INVENTORY',
+        -- ii.IF INVENTORY QUANTITY IS LESS THAN 10% OF QUANTITY SOLD, SHOW 'LOW INVENTORY, NEED TO ADD INVENTORY', 
+        -- iii.IF INVENTORY QUANTITY IS LESS THAN 50% OF QUANTITY SOLD, SHOW 'MEDIUM INVENTORY, NEED TO ADD SOME INVENTORY', 
+        -- iv.IF INVENTORY QUANTITY IS MORE OR EQUAL TO 50% OF QUANTITY SOLD, SHOW 'SUFFICIENT INVENTORY'
+	-- B.FOR MOBILES AND WATCHES CATEGORIES, 
+		-- i.IF SALES TILL DATE IS ZERO THEN SHOW 'NO SALES IN PAST, GIVE DISCOUNT TO REDUCE INVENTORY', 
+        -- ii.IF INVENTORY QUANTITY IS LESS THAN 20% OF QUANTITY SOLD, SHOW 'LOW INVENTORY, NEED TO ADD INVENTORY',  
+        -- iii.IF INVENTORY QUANTITY IS LESS THAN 60% OF QUANTITY SOLD, SHOW 'MEDIUM INVENTORY, NEED TO ADD SOME INVENTORY', 
+        -- iv.IF INVENTORY QUANTITY IS MORE OR EQUAL TO 60% OF QUANTITY SOLD, SHOW 'SUFFICIENT INVENTORY'
+	-- C.REST OF THE CATEGORIES, 
+		-- i.IF SALES TILL DATE IS ZERO THEN SHOW 'NO SALES IN PAST, GIVE DISCOUNT TO REDUCE INVENTORY', 
+        -- ii.IF INVENTORY QUANTITY IS LESS THAN 30% OF QUANTITY SOLD, SHOW 'LOW INVENTORY, NEED TO ADD INVENTORY',  
+        -- iii.IF INVENTORY QUANTITY IS LESS THAN 70% OF QUANTITY SOLD, SHOW 'MEDIUM INVENTORY, NEED TO ADD SOME INVENTORY', 
+        -- iv. IF INVENTORY QUANTITY IS MORE OR EQUAL TO 70% OF QUANTITY SOLD, SHOW 'SUFFICIENT INVENTORY'
+        
+			-- [NOTE: TABLES TO BE USED -PRODUCT, PRODUCT_CLASS, ORDER_ITEMS] (USE SUB-QUERY)
+
+select p.PRODUCT_ID,
+	upper(p.PRODUCT_DESC) as PRODUCT_DESC, 
+    p.PRODUCT_QUANTITY_AVAIL,
+    oi.QUANTITY_SOLD,
+    case 
+		when oi.QUANTITY_SOLD is null then 'NO SALES IN PAST, GIVE DISCOUNT TO REDUCE INVENTORY'
+        
+        when upper(pc.PRODUCT_CLASS_DESC in ('ELECTRONICS', 'COMPUTER')) 
+			and p.PRODUCT_QUANTITY_AVAIL < oi.QUANTITY_SOLD*0.1
+		then 'LOW INVENTORY, NEED TO ADD INVENTORY'
+		when upper(pc.PRODUCT_CLASS_DESC in ('ELECTRONICS', 'COMPUTER')) 
+			and p.PRODUCT_QUANTITY_AVAIL < oi.QUANTITY_SOLD*0.5
+		then 'MEDIUM INVENTORY, NEED TO ADD SOME INVENTORY'
+        when upper(pc.PRODUCT_CLASS_DESC in ('ELECTRONICS', 'COMPUTER')) 
+			and p.PRODUCT_QUANTITY_AVAIL >= oi.QUANTITY_SOLD*0.5
+		then 'SUFFICIENT INVENTORY'
+                
+        when upper(pc.PRODUCT_CLASS_DESC in ('MOBILES', 'WATCHES')) 
+			and p.PRODUCT_QUANTITY_AVAIL < oi.QUANTITY_SOLD*0.2
+		then 'LOW INVENTORY, NEED TO ADD INVENTORY'
+		when upper(pc.PRODUCT_CLASS_DESC in ('MOBILES', 'WATCHES')) 
+			and p.PRODUCT_QUANTITY_AVAIL < oi.QUANTITY_SOLD*0.6
+		then 'MEDIUM INVENTORY, NEED TO ADD SOME INVENTORY'
+        when upper(pc.PRODUCT_CLASS_DESC in ('MOBILES', 'WATCHES')) 
+			and p.PRODUCT_QUANTITY_AVAIL >= oi.QUANTITY_SOLD*0.6
+		then 'SUFFICIENT INVENTORY'
+        
+        when upper(pc.PRODUCT_CLASS_DESC not in ('ELECTRONICS', 'COMPUTER', 'MOBILES', 'WATCHES')) 
+			and p.PRODUCT_QUANTITY_AVAIL < oi.QUANTITY_SOLD*0.3
+		then 'LOW INVENTORY, NEED TO ADD INVENTORY'
+		when upper(pc.PRODUCT_CLASS_DESC not in ('ELECTRONICS', 'COMPUTER', 'MOBILES', 'WATCHES')) 
+			and p.PRODUCT_QUANTITY_AVAIL < oi.QUANTITY_SOLD*0.7
+		then 'MEDIUM INVENTORY, NEED TO ADD SOME INVENTORY'
+        when upper(pc.PRODUCT_CLASS_DESC not in ('ELECTRONICS', 'COMPUTER', 'MOBILES', 'WATCHES')) 
+			and p.PRODUCT_QUANTITY_AVAIL >= oi.QUANTITY_SOLD*0.7
+		then 'SUFFICIENT INVENTORY'
+	end as INVENTORY_STATUS
+from 
+	product_class as pc
+right join product as p
+    on pc.PRODUCT_CLASS_CODE = p.PRODUCT_CLASS_CODE
+left join 
+		(select PRODUCT_ID,
+			sum(PRODUCT_QUANTITY) as QUANTITY_SOLD
+		from order_items
+        group by PRODUCT_ID) as oi
+	on p.PRODUCT_ID = oi.PRODUCT_ID;
+    
+-- 9. WRITE A QUERY TO DISPLAY PRODUCT_ID, PRODUCT_DESC AND TOTAL QUANTITY OF PRODUCTS WHICH ARE SOLD TOGETHER WITH PRODUCT ID 201 
+-- AND ARE NOT SHIPPED TO CITY BANGALORE AND NEW DELHI. DISPLAY THE OUTPUT IN DESCENDING ORDER WITH RESPECT TO TOT_QTY.(USE SUB-QUERY)
+	-- [NOTE: TABLES TO BE USED -ORDER_ITEMS,PRODUCT,ORDER_HEADER, ONLINE_CUSTOMER, ADDRESS]
+
+select p.PRODUCT_ID, 
+	p.PRODUCT_DESC,
+	sum(oi.QUANTITY_SOLD) as TOTAL_QUANTITY_SOLD
+from 
+	(select PRODUCT_ID, 
+		upper(PRODUCT_DESC) as PRODUCT_DESC
+	from product) as p
+join
+	(select oi1.ORDER_ID,
+		oi1.PRODUCT_ID,
+        sum(oi1.PRODUCT_QUANTITY) as QUANTITY_SOLD
+	from order_items as oi1
+	join (select ORDER_ID
+		from order_items
+		where PRODUCT_ID = 201) as oi2
+    on oi1.ORDER_ID = oi2.ORDER_ID
+	group by oi1.ORDER_ID, oi1.PRODUCT_ID) as oi
+on p.PRODUCT_ID = oi.PRODUCT_ID
+join
+	(select ORDER_ID, CUSTOMER_ID
+    from order_header
+    where upper(ORDER_STATUS) = 'SHIPPED') as oh
+on oi.ORDER_ID = oh.ORDER_ID
+join
+	(select CUSTOMER_ID, ADDRESS_ID
+    from online_customer) as os
+on oh.CUSTOMER_ID = os.CUSTOMER_ID
+join
+	(select ADDRESS_ID
+    from address
+    where upper(CITY) not in ('BANGALORE', 'NEW DELHI')) as a
+on os.ADDRESS_ID = a.ADDRESS_ID
+where p.PRODUCT_ID != 201
+group by p.PRODUCT_ID, p.PRODUCT_DESC
+order by TOTAL_QUANTITY_SOLD desc;
+
+-- 10. WRITE A QUERY TO DISPLAY THE ORDER_ID,CUSTOMER_ID AND CUSTOMER FULLNAME AND TOTAL QUANTITY OF PRODUCTS SHIPPED FOR ORDER IDS 
+-- WHICH ARE EVENAND SHIPPED TO ADDRESS WHERE PINCODE IS NOT STARTING WITH "5" 
+	-- [NOTE: TABLES TO BE USED - ONLINE_CUSTOMER,ORDER_HEADER, ORDER_ITEMS, ADDRESS]
+    
+select oi.ORDER_ID,
+	oc.CUSTOMER_ID,
+    oc.CUSTOMER_FULLNAME,
+    oi.TOTAL_QUANTITY
+from
+	(select ORDER_ID,
+		sum(PRODUCT_QUANTITY) as TOTAL_QUANTITY
+	from order_items
+    where ORDER_ID%2 = 0
+    group by ORDER_ID) as oi
+join 
+	(select	ORDER_ID,
+		CUSTOMER_ID
+	from order_header
+    where upper(ORDER_STATUS) = 'SHIPPED') as oh
+on oi.ORDER_ID = oh.ORDER_ID
+join 
+	(select CUSTOMER_ID,
+		ADDRESS_ID,
+        upper(concat(CUSTOMER_FNAME, ' ', CUSTOMER_LNAME)) as CUSTOMER_FULLNAME
+	from online_customer) as oc
+on oh.CUSTOMER_ID = oc.CUSTOMER_ID
+join
+	(select ADDRESS_ID
+    from address
+    where PINCODE not like '5%') as a
+on oc.ADDRESS_ID = a.ADDRESS_ID;
